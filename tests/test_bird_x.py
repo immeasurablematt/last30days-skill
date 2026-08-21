@@ -509,7 +509,7 @@ class TestStrongestTokenRetryAnchored(unittest.TestCase):
 
 
 class TestBirdRetryQueryCorrectness(unittest.TestCase):
-    def test_quoted_topic_only_generates_balanced_retry_queries(self):
+    def test_quoted_entity_query_fails_closed_without_relaxing(self):
         from lib import bird_x
 
         queries = []
@@ -534,9 +534,9 @@ class TestBirdRetryQueryCorrectness(unittest.TestCase):
                 "2026-07-19",
             )
 
-        self.assertGreaterEqual(len(queries), 2)
+        self.assertEqual(1, len(queries))
         self.assertEqual(
-            "immobilienmakler berlin mixed-use since:2026-07-12",
+            '("Immobilienmakler Berlin") since:2026-07-12',
             queries[0],
         )
         for query in queries:
