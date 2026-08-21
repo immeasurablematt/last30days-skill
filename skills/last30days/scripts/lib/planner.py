@@ -450,6 +450,7 @@ Rules:
 - search_query should be concise and keyword-heavy
 - ranking_query should read like a natural-language question
 - preserve exact proper nouns and entity strings from the topic
+- on named-entity topics, quote the exact entity in every search_query and include only established aliases (for example, a documented acronym) across the plan; never emit an unanchored fallback subquery
 - NEVER include temporal phrases in search_query: no 'last 30 days', 'recent', month names, year numbers
 - NEVER include meta-research phrases: no 'news', 'updates', 'public appearances', 'latest developments'
 - INTENT-MODIFIER HANDLING: when the topic contains one of {{use cases, use case, workflows, workflow, examples, tutorial, tutorials, review, reviews, comparison, applications, in practice, production, production use, how i use}}, STRIP that phrase from every search_query (keep its meaning in ranking_query). Emit 4-5 paraphrased subqueries that each express the intent differently (e.g., 'production', 'workflow OR pipeline', 'review OR experience', 'vs COMPETITOR', 'community discussion'). Broad retrieval, narrow ranking. This was the 2026-04-19 Hermes Agent Use Cases failure mode: the planner echoed "hermes agent use cases" as a literal search string and returned near-zero results because nobody posts that exact phrase.

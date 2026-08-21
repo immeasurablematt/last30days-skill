@@ -271,7 +271,10 @@ def _best_author_match(items: List[Dict[str, Any]], topic: str) -> str:
     for item in items:
         name_tokens = _normalize_name(item.get("author", "")).split()
         url = (item.get("author_url") or "").strip()
-        if not url or len(name_tokens) < 2:
+        # Article enrichment uses the person-profile endpoint. A matching
+        # company page is not a person and must not turn a successful search
+        # into a misleading partial-source result.
+        if not url or "/company/" in url.lower() or len(name_tokens) < 2:
             continue
         if _token_run(name_tokens, topic_tokens) or _token_run(topic_tokens, name_tokens):
             return url

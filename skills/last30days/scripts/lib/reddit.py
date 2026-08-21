@@ -23,7 +23,7 @@ def _first_of(*values, default=None):
             return v
     return default
 
-from . import dates, health, http, log
+from . import dates, entity_guard, health, http, log
 
 SCRAPECREATORS_BASE = "https://api.scrapecreators.com/v1/reddit"
 
@@ -588,7 +588,10 @@ def search_reddit(
         all_items.append(item)
 
     # === Phase 3: Subreddit Discovery + Targeted Search ===
-    subreddit_budget = 0 if intent == "how_to" else config["subreddit_searches"]
+    # Broad community discovery is valuable for topics, but an exact entity
+    # query must not use incidental hits to fan out into unrelated subreddits.
+    strict_entity = entity_guard.from_search_query(topic).active
+    subreddit_budget = 0 if intent == "how_to" or strict_entity else config["subreddit_searches"]
     discovered_subs = discover_subreddits(all_raw_posts, topic=topic, max_subs=subreddit_budget)
     _log(f"Discovered subreddits: {discovered_subs}")
 

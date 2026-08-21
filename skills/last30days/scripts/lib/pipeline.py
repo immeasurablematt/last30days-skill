@@ -30,6 +30,7 @@ from . import (
     dedupe,
     digg,
     dripstack,
+    entity_guard,
     entity_extract,
     env,
     github,
@@ -2538,23 +2539,33 @@ def run(
     if hiring_summary:
         bundle.artifacts["hiring_signals"] = hiring_summary
 
-    items_by_source = _finalize_items_by_source(
-        bundle.items_by_source, topic=topic, config=config, depth=depth, mock=mock,
-        elapsed=time.monotonic() - run_started,
-    )
-    source_status = _finalize_source_status(bundle.source_status, items_by_source)
-    # Normalized set of handles this run resolved for the topic. A candidate
-    # authored by one of these is first-party and is exempted from the
-    # entity-miss demotion in rerank (a post never repeats its own author's
-    # name, so the body-text grounding check would otherwise zero out the
-    # subject's own highest-signal posts). Built before fusion so the
-    # per-author cap can give the topic's subject a higher allowance than an
-    # incidental third-party account.
+    # Normalized set of handles this run resolved for the topic. A post from a
+    # resolved first-party handle is identity-grounded even when its body does
+    # not repeat the author's own name.
     resolved_handles = explicit_first_party | {
         h.lstrip("@").strip().lower()
         for h in supplemental_handles
         if h and h.strip()
     }
+
+    # A model-authored plan quotes named entities. Treat those quotes as a
+    # fail-closed evidence boundary before fusion, source counts, or synthesis.
+    # The identity is supplied by each plan; no product or industry is baked in.
+    entity_gate = entity_guard.from_plan(plan)
+    removed_by_source = _apply_entity_evidence_gate(
+        bundle, entity_gate, resolved_handles=resolved_handles
+    )
+    if removed_by_source:
+        bundle.artifacts["entity_evidence_gate"] = {
+            "anchors": list(entity_gate.anchors),
+            "removed_by_source": removed_by_source,
+        }
+
+    items_by_source = _finalize_items_by_source(
+        bundle.items_by_source, topic=topic, config=config, depth=depth, mock=mock,
+        elapsed=time.monotonic() - run_started,
+    )
+    source_status = _finalize_source_status(bundle.source_status, items_by_source)
     # Real X handles from explicit flags, @mentions in topic, or Phase 2 discovery.
     # When no real handle is identified, skip the X floor entirely — a noisier
     # report beats losing the subject's evidence. Topic tokens like "peter" are
@@ -3045,6 +3056,32 @@ def _finalize_items_by_source(
                 http.fixture_source_record(enrichment_request, schema.to_dict(items))
         finalized[source] = items
     return finalized
+
+
+def _apply_entity_evidence_gate(
+    bundle: schema.RetrievalBundle,
+    gate: entity_guard.EntityGate,
+    resolved_handles: set[str] | None = None,
+) -> dict[str, int]:
+    """Remove ungrounded named-entity hits from every downstream evidence view."""
+    if not gate.active:
+        return {}
+
+    removed_by_source: dict[str, int] = {}
+    for source, items in list(bundle.items_by_source.items()):
+        kept, removed = entity_guard.filter_items(
+            items, gate, resolved_handles=resolved_handles
+        )
+        bundle.items_by_source[source] = kept
+        if removed:
+            removed_by_source[source] = removed
+
+    for key, items in list(bundle.items_by_source_and_query.items()):
+        kept, _removed = entity_guard.filter_items(
+            items, gate, resolved_handles=resolved_handles
+        )
+        bundle.items_by_source_and_query[key] = kept
+    return removed_by_source
 
 
 def _merge_replayed_enrichment(

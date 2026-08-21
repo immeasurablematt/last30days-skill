@@ -403,14 +403,13 @@ def test_topic_handle_mentions_is_case_insensitive():
     assert pipeline._topic_handle_mentions("@SteiPete") == {"steipete"}
 
 
-def test_entity_topic_no_handle_no_discovery_skips_x_floor():
-    """Policy: when the subject cannot be identified, skip the X floor entirely.
+def test_entity_topic_no_handle_still_applies_identity_gate():
+    """An unresolved handle must not disable the plan-derived identity gate.
 
     Entity-shaped topic, no --x-handle, auto-resolve/Phase 2 return nothing.
     Retrieved X items include a zero-relevance post whose author is not a
-    topic token. That post survives prune because the floor is not applied.
-    A companion on-topic post is in the batch so the all-fail rescue cannot
-    hide an incorrectly applied floor.
+    topic token. The ordinary X relevance floor remains disabled, but the
+    stricter named-entity evidence boundary removes the ungrounded item.
     """
     from unittest.mock import patch
     from lib import pipeline
@@ -470,10 +469,10 @@ def test_entity_topic_no_handle_no_discovery_skips_x_floor():
 
     x_items = report.items_by_source.get("x") or []
     authors = {item.author for item in x_items}
-    assert "rando_acct" in authors, (
-        "unresolved subject policy: skip X floor when no real handle identified; "
-        "the zero-relevance post whose author is not a topic token must survive"
+    assert "rando_acct" not in authors, (
+        "an unresolved handle must not let entity-free evidence survive"
     )
+    assert "third_acct" in authors
 
 
 def test_entity_topic_with_at_mention_applies_x_floor():

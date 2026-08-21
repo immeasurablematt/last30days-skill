@@ -1,0 +1,1 @@
+Named-entity reports now preserve plan-supplied identity anchors through source retries and exclude ungrounded retrieval noise before ranking, source counts, and synthesis. Reddit no longer fans exact entity searches into unrelated communities, and LinkedIn company pages no longer trigger person-profile enrichment.

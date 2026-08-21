@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import env, health, http, log, subproc
+from . import entity_guard, env, health, http, log, subproc
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -406,6 +406,15 @@ def search_x(
     """
     count = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["default"])
     timeout = 30 if depth == "quick" else 45 if depth == "default" else 60
+
+    # Named-entity plans quote the identity. Never relax one of those searches
+    # to generic leading tokens after a zero-result response.
+    gate = entity_guard.from_search_query(topic)
+    if gate.active:
+        anchored = entity_guard.retry_query(gate)
+        query = f"({anchored}) since:{from_date}"
+        _log(f"Searching entity-anchored: {query}")
+        return _run_bird_search(query, count, timeout)
 
     # Extract core subject - X search is literal, not semantic
     core_subject = _extract_core_subject(topic)
